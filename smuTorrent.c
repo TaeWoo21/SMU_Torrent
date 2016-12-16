@@ -34,6 +34,8 @@ char server_port[] = {"5100"};
 char server_threadport[] = {"9190"};
 
 char filename[BUF_SIZE];        // 다운받고자 하는 파일 이름이 담길 변수
+int *check;
+int block_count;
 
 
 
@@ -96,14 +98,16 @@ void* thread_upload(void * arg){			//part of HS
     return NULL;
 }
 
-void* thread_sendingfile(void * arg){			//part of HS
+void* thread_sendingfile(void * arg){            //part of HS
     int clnt_sock = *((int*)arg);
     char dir[1000] = {"./"};
     FILE *fp;
-    //	char file[1024];
+    //    char file[1024];
     char msg[BUF_SIZE];
+    char location[BUF_SIZE];
     int fd, total, sread, filesize;
-    
+    int i;
+    int temp_num;
     printf("start of thread_sendingfile\n");
     read(clnt_sock, msg, BUF_SIZE);
     printf("msg:%s\n", msg);
@@ -112,8 +116,8 @@ void* thread_sendingfile(void * arg){			//part of HS
         printf("there is file\n");
         write(clnt_sock, "1", BUF_SIZE);
         
-        //		if((fp = fopen(msg, "rb")) == NULL)
-        //			error_msg("fopen()");
+        //        if((fp = fopen(msg, "rb")) == NULL)
+        //            error_msg("fopen()");
         if((fd = open(msg, O_RDONLY,S_IRWXU)) == -1)
             error_msg("fopen()");
         else{
@@ -122,27 +126,39 @@ void* thread_sendingfile(void * arg){			//part of HS
             lseek(fd, 0, SEEK_SET );
             
             printf("file size : %d\n", filesize);
-            
-            
-            while( total != filesize )                                          //file 전송 부
-            {
-                /*
-                 sread = read(fd, msg, 100 );
-                 printf( "file is sending now.. " );
-                 total += sread;
-                 msg[sread] = 0;
-                 send(temp_socket, msg, sread, 0 );
-                 printf( "processing :%4.2f%% \n ", (float)total*100 / (float)filesize );
-                 */
+            while(1){
+                read(clnt_sock, location, BUF_SIZE);
+                if(!strcmp(location, "EOF"))
+                    break;
+                printf("location is : %s\n", location);
+                temp_num = atoi(location);
+                lseek(fd, temp_num, SEEK_SET );
+                
                 sread = read(fd, msg, BUF_SIZE );
-                printf( "file is sending now.. , %d", sread );
-                total += sread;
-                msg[sread] = 0;
                 write(clnt_sock, msg, sread);
+                memset(location, 0, BUF_SIZE);
                 memset(msg, 0, BUF_SIZE);
-                printf( "processing : %4.2f%%, total : %d \n", (float)total*100 / (float)filesize, total );
                 
             }
+            //            while( total != filesize )                   //file 전송 부
+            //            {
+            //               /*
+            //                 sread = read(fd, msg, 100 );
+            //                 printf( "file is sending now.. " );
+            //                 total += sread;
+            //                 msg[sread] = 0;
+            //                 send(temp_socket, msg, sread, 0 );
+            //                 printf( "processing :%4.2f%% \n ", (float)total*100 / (float)filesize );
+            //                 */
+            //                sread = read(fd, msg, BUF_SIZE );
+            //                printf( "file is sending now.. , %d", sread );
+            //                total += sread;
+            //                msg[sread] = 0;
+            //                write(clnt_sock, msg, sread);
+            //                memset(msg, 0, BUF_SIZE);
+            //                printf( "processing : %4.2f%%, total : %d \n", (float)total*100 / (float)filesize, total );
+            
+            //           }
             //write(temp_socket, "EOF", BUF_SIZE);
             
             printf("clnt_sock : %d\n",clnt_sock);
@@ -192,8 +208,10 @@ void file_download() {
     read(serv_sock, howmany, BUF_SIZE);     // 파일의 크기를 서버로부터 받음
     howmuch_size = atoi(howmany);
     
+    block_count = howmuch_size / BUF_SIZE;
+    check = (int*)malloc(sizeof(int)*block_count);  // 체크 배열을 동적할당
     
-    
+    memset(check, 0, BUF_SIZE);
     
     printf("howmany_clnt : %d\n", howmany_clnt);
     printf("howmuch_clnt : %d\n", howmuch_size);
@@ -215,7 +233,7 @@ void file_download() {
     //strcpy(client[0], "203.237.179.42");     // <Hard-coding> 파일을 가지고 있는 클라이언트들의 IP를 나 자신으로 하드코딩 함(일단)
     //strcpy(client[1], "127.0.0.1");     // <Hard-coding>
     
-    for(i=0; i < 1; i++) {
+    for(i=0; i < howmany_clnt; i++) {
         clnt_socks[i] = socket(PF_INET, SOCK_STREAM, 0);    // 파일을 가지고 있는 클라이언트와 연결
         
         memset(&clnt_adr, 0, sizeof(clnt_adr));
@@ -233,18 +251,21 @@ void file_download() {
     for(i=0 ; i < howmany_clnt; i++) {
         pthread_join(download[i], NULL);
     }
+    
+    free(check);
 }
 
 void* thread_download(void * arg){			//part of taewoo
     int clnt_sock = *((int*)arg);
     int str_len;
     FILE * fp;
-    int fd, filesize, sread, total=0, temp;
+    int fd, filesize, sread, total=0, temp, i;
     char result[BUF_SIZE];
     char data[BUF_SIZE];
+    char size[BUF_SIZE];
+    char start_binary[BUF_SIZE];
     char local_filename[BUF_SIZE];
     char file[BUF_SIZE];
-    
     
     
     temp = clnt_sock;
@@ -267,7 +288,9 @@ void* thread_download(void * arg){			//part of taewoo
     }
     printf("clnt_sock2 : %d, %d\n", clnt_sock, temp);
     
-    str_len = read(clnt_sock, &filesize, BUF_SIZE);
+    //str_len = read(clnt_sock, &filesize, BUF_SIZE);
+    str_len = read(clnt_sock, size, BUF_SIZE);
+    filesize = atoi(size);
     
     printf("clnt_sock3 : %d, %d\n", clnt_sock, temp);
     clnt_sock = temp;
@@ -281,17 +304,24 @@ void* thread_download(void * arg){			//part of taewoo
         printf("down file name : %s\n", file);
         fd = open(file,  O_RDWR| O_CREAT| O_TRUNC,S_IRWXU);
         
+        printf("block_conut : %d", block_count);
+        for(i=0; i<= block_count; i++) {
+            if(!check[i]) {
+                memset(start_binary, 0, BUF_SIZE);
+                sprintf(start_binary, "%d", i*100);
+                
+                write(clnt_sock, start_binary, BUF_SIZE);
+                printf("%s \n", start_binary);
+                      
+                sread = read(clnt_sock, data, BUF_SIZE);
+                write(fd, data, sread);
+                memset(data, 0, BUF_SIZE);
+            }
+        }
+        write(clnt_sock, "EOF", BUF_SIZE);
+        /*
         while( total != filesize )
         {
-            /*
-             sread = recv( clnt_sock, data, 100, 0 );
-             printf( "file is receiving now.. ");
-             total += sread;
-             data[sread] = 0;
-             write( fd, data, sread );
-             memset(data, 0, BUF_SIZE);
-             printf( "processing : %4.2f%%, total : %d \n", (float)total*100 / (float)filesize, total );
-             */
             sread = read(clnt_sock, data, BUF_SIZE);
             printf( "file is receiving now.. ");
             
@@ -303,6 +333,7 @@ void* thread_download(void * arg){			//part of taewoo
             
             
         }
+        */
         close(fd);
     }
     else {      // 0을 돌려받을 경우 클라이언트와 연결을 끊음
