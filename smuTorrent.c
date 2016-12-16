@@ -29,7 +29,7 @@ void file_download();
 void* thread_checkdir(void * arg);
 void error_msg(char * msg);
 
-char server_ip[] = {"211.229.192.123"};
+char server_ip[] = {"*.*.*.*"};  // server IP Address
 char server_port[] = {"5100"};
 char server_threadport[BUF_SIZE];
 
