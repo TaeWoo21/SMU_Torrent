@@ -5,7 +5,6 @@
 //  Created by 이태우, 최현수
 //  Copyright © 2016년 이태우, 최현수. All rights reserved.
 //
-//
 
 #include <stdio.h>
 #include <stdlib.h>					//exit()
@@ -18,6 +17,7 @@
 #include <sys/stat.h>               // open()을 쓰기 위함
 #include <fcntl.h>                  // open()을 쓰기 위함
 #include <dirent.h>					//DIR* readdir()
+#include <sys/stat.h>               // 디렉토리 내의 파일의 크기를 받기 위한 헤더
 
 #define BUF_SIZE 1024
 #define IP_SIZE 20      // add!!!!
@@ -30,7 +30,7 @@ void* thread_checkdir(void * arg);
 void error_msg(char * msg);
 
 char server_ip[] = {"211.229.192.123"};
-char server_port[] = {"8099"};
+char server_port[] = {"5100"};
 char server_threadport[BUF_SIZE];
 
 char filename[BUF_SIZE];        // 다운받고자 하는 파일 이름이 담길 변수
@@ -160,7 +160,7 @@ void* thread_sendingfile(void * arg){			//part of HS
 }
 
 void file_download() {
-    int howmany_clnt, i, serv_sock;        // howmany_clnt : 다운받을 파일을 가지고 있는 클라이언트의 수
+    int howmany_clnt, howmuch_size, i, serv_sock;        // howmany_clnt : 다운받을 파일을 가지고 있는 클라이언트의 수
     struct sockaddr_in clnt_adr;
     struct sockaddr_in server_addr;
     
@@ -171,41 +171,48 @@ void file_download() {
     printf("Input download file : ");
     fgets(filename, BUF_SIZE, stdin);
     
-    /*
-     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
-     memset(&server_addr, 0, sizeof(server_addr));
-     server_addr.sin_family = AF_INET;
-     server_addr.sin_addr.s_addr = inet_addr(server_ip);
-     server_addr.sin_port = htons(atoi(server_port));
-     
-     if(connect(serv_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
-     error_msg("connection()");
-     
-     write(serv_sock, "ip_down", BUF_SIZE);
-     write(serv_sock, filename, BUF_SIZE);        // send filename to server (몇명이 가지고 있는지 누가 가지고 있는지 알기 위해)
-     
-     read(serv_sock, howmany, BUF_SIZE);       // 몇명이 파일을 가지고 있는지 서버로부터 받음
-     
-     howmany_clnt = atoi(howmany);
-     
-     printf("howmany_clnt : %d\n", howmany_clnt);
-     
-     sleep(2);
-     */
-    howmany_clnt = 1; // <Hard-coding> 파일을 가지고 있는 클라이언트의 수를 그냥 하드코딩 함(일단)
     
+    serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(server_ip);
+    server_addr.sin_port = htons(atoi(server_port));
+    
+    if(connect(serv_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
+        error_msg("connection()");
+    
+    write(serv_sock, "ip_down", BUF_SIZE);
+    write(serv_sock, filename, BUF_SIZE);        // send filename to server (몇명이 가지고 있는지 누가 가지고 있는지 알기 위해)
+    
+    memset(howmany, 0, BUF_SIZE);
+    read(serv_sock, howmany, BUF_SIZE);       // 몇명이 파일을 가지고 있는지 서버로부터 받음
+    howmany_clnt = atoi(howmany);
+    
+    memset(howmany, 0, BUF_SIZE);
+    read(serv_sock, howmany, BUF_SIZE);     // 파일의 크기를 서버로부터 받음
+    howmuch_size = atoi(howmany);
+    
+    
+    
+    
+    printf("howmany_clnt : %d\n", howmany_clnt);
+    printf("howmuch_clnt : %d\n", howmuch_size);
+    
+    sleep(2);
+    
+    //howmany_clnt = 1; // <Hard-coding> 파일을 가지고 있는 클라이언트의 수를 그냥 하드코딩 함(일단)
+
     char client[howmany_clnt][BUF_SIZE];
     int clnt_socks[howmany_clnt];
     pthread_t download[howmany_clnt];
     
-    /*
-     for(i=0; i < howmany_clnt; i++) {       // 파일을 가지고 있는 클라이언트들의 IP를 받음
-     read(serv_sock, client[i], BUF_SIZE);       // receive clients IP address
-     printf("[%d]-%s\n", i,client[i]);
-     }
-     */
     
-    strcpy(client[0], "182.211.238.176");     // <Hard-coding> 파일을 가지고 있는 클라이언트들의 IP를 나 자신으로 하드코딩 함(일단)
+    for(i=0; i < howmany_clnt; i++) {       // 파일을 가지고 있는 클라이언트들의 IP를 받음
+        read(serv_sock, client[i], BUF_SIZE);       // receive clients IP address
+        printf("[%d]-%s\n", i,client[i]);
+    }
+    
+    //strcpy(client[0], "203.237.179.42");     // <Hard-coding> 파일을 가지고 있는 클라이언트들의 IP를 나 자신으로 하드코딩 함(일단)
     //strcpy(client[1], "127.0.0.1");     // <Hard-coding>
     
     for(i=0; i < 1; i++) {
@@ -324,20 +331,29 @@ void* thread_checkdir(void * arg){
         printf("start send_filename function\n");
         DIR *dir;
         struct dirent *ent;
+        struct stat ent_size;
         int num_file = 0;
         char filelist[10240] = {"/"};
+        char filesize[BUF_SIZE];
         //dir = opendir ("/Users/huynsoochoi/Desktop/1");
         dir = opendir("/Users/Taewoo/Desktop/test/test");
         //	char str1[1024];
         if (dir != NULL) {
             while((ent=readdir(dir)) != NULL) {
-                strcat(filelist, ent->d_name);
-                strcat(filelist, "/");
-                //			num_file+=1;
+                lstat(ent->d_name, &ent_size);      // 파일 위치(파일이름)을 주고 구조체의 포인터를 넘겨줌 => 해당 파일의 정보가 구조체에 담김
+                
+                if(S_ISREG(ent_size.st_mode)) {     //
+                    if(strcmp(ent->d_name, ".DS_Store")) {
+                        strcat(filelist, ent->d_name);
+                        sprintf(filesize, "$%lld/" , ent_size.st_size);
+                        strcat(filelist, filesize);
+                        //printf("%s", filelist);
+                    }
+                }
             }
             
             write(main_socket, "ip_up", BUF_SIZE);
-            write(main_socket, filelist, BUF_SIZE);
+            write(main_socket, filelist, 10240);
         }
         else
             printf("can't find directory\n");
@@ -355,11 +371,11 @@ void* thread_checkdir(void * arg){
 //void send_filelist(){
 //	printf("start send_filename function\n");
 //	char filelist[10240] = {"/"};
-//	
+//
 //	DIR *dir;
 //	struct dirent *ent;
 //	dir = opendir ("/Users/huynsoochoi/Desktop/1");
-//	
+//
 //	if (dir != NULL) {
 //		while((ent=readdir(dir)) != NULL) {
 //			strcat(filelist, ent->d_name);
