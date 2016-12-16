@@ -201,7 +201,7 @@ void file_download() {
     sleep(2);
     
     //howmany_clnt = 1; // <Hard-coding> 파일을 가지고 있는 클라이언트의 수를 그냥 하드코딩 함(일단)
-
+    
     char client[howmany_clnt][BUF_SIZE];
     int clnt_socks[howmany_clnt];
     pthread_t download[howmany_clnt];
