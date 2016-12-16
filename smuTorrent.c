@@ -29,9 +29,9 @@ void file_download();
 void* thread_checkdir(void * arg);
 void error_msg(char * msg);
 
-char server_ip[] = {"192.168.0.3"};  // server IP Address
+char server_ip[] = {"211.229.192.123"};  // server IP Address
 char server_port[] = {"5100"};
-char server_threadport[BUF_SIZE];
+char server_threadport[] = {"9190"};
 
 char filename[BUF_SIZE];        // 다운받고자 하는 파일 이름이 담길 변수
 
@@ -328,7 +328,7 @@ void* thread_checkdir(void * arg){
         if(connect(main_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
             error_msg("connection()");
         
-        printf("start send_filename function\n");
+        //printf("start send_filename function\n");
         DIR *dir;
         struct dirent *ent;
         struct stat ent_size;
@@ -352,7 +352,7 @@ void* thread_checkdir(void * arg){
             }
             
             sprintf(howmany_file, "%d", num_file);
-            printf("file의 갯수 : %s\n", howmany_file);
+            //printf("file의 갯수 : %s\n", howmany_file);
             write(main_socket, howmany_file, BUF_SIZE);
             
             rewinddir(dir);     // 디렉토리 읽기 위치를 처음으로 이동
@@ -364,13 +364,13 @@ void* thread_checkdir(void * arg){
                     if(strcmp(ent->d_name, ".DS_Store")) {
                         memset(filelist, 0, BUF_SIZE);
                         strcpy(filelist, ent->d_name);
-                        printf("filelist : %s ,", filelist);
+                        //printf("filelist : %s ,", filelist);
                         write(main_socket, filelist, BUF_SIZE);
                         
                         
                         memset(filesize, 0, BUF_SIZE);
                         sprintf(filesize, "%lld" , ent_size.st_size);
-                        printf("filesize : %s\n", filesize);
+                        //printf("filesize : %s\n", filesize);
                         write(main_socket, filesize, BUF_SIZE);
                         
                         
@@ -383,7 +383,7 @@ void* thread_checkdir(void * arg){
         
         //printf("filelist :%d\n%s\n", num_file, filelist);
         closedir(dir);
-        printf("end send_filename function\n");
+        //printf("end send_filename function\n");
         sleep(10);
         close(main_socket);
     }
