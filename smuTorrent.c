@@ -19,7 +19,7 @@
 #include <dirent.h>					//DIR* readdir()
 #include <sys/stat.h>               // 디렉토리 내의 파일의 크기를 받기 위한 헤더
 
-#define BUF_SIZE 1024
+#define BUF_SIZE 100
 #define IP_SIZE 20      // add!!!!
 
 void* thread_upload(void * arg);
@@ -29,7 +29,7 @@ void file_download();
 void* thread_checkdir(void * arg);
 void error_msg(char * msg);
 
-char server_ip[] = {"*.*.*.*"};  // server IP Address
+char server_ip[] = {"192.168.0.3"};  // server IP Address
 char server_port[] = {"5100"};
 char server_threadport[BUF_SIZE];
 
@@ -42,7 +42,7 @@ int main(){
     pthread_t upload, download, checkdir;
     printf("Welcome to SMU Torrent System!!\n");
     
-    //pthread_create(&checkdir, NULL, thread_checkdir, NULL);
+    pthread_create(&checkdir, NULL, thread_checkdir, NULL);
     pthread_create(&upload, NULL, thread_upload, NULL);
     //pthread_create(&download, NULL, thread_download, (void*)&main_socket);
     
@@ -319,52 +319,74 @@ void* thread_checkdir(void * arg){
     
     int main_socket;
     
-    
-    main_socket = socket(PF_INET, SOCK_STREAM, 0);
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = inet_addr(server_ip);
-    server_addr.sin_port = htons(atoi(server_port));
-    if(connect(main_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
-        error_msg("connection()");
     while(1){
+        main_socket = socket(PF_INET, SOCK_STREAM, 0);
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr.s_addr = inet_addr(server_ip);
+        server_addr.sin_port = htons(atoi(server_port));
+        if(connect(main_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
+            error_msg("connection()");
+        
         printf("start send_filename function\n");
         DIR *dir;
         struct dirent *ent;
         struct stat ent_size;
         int num_file = 0;
-        char filelist[10240] = {"/"};
+        char filelist[BUF_SIZE];
+        char howmany_file[BUF_SIZE];
         char filesize[BUF_SIZE];
         //dir = opendir ("/Users/huynsoochoi/Desktop/1");
         dir = opendir("/Users/Taewoo/Desktop/test/test");
         //	char str1[1024];
+        write(main_socket, "ip_up", BUF_SIZE);
+        
         if (dir != NULL) {
+            while((ent=readdir(dir)) != NULL) {
+                lstat(ent->d_name, &ent_size);
+        
+                
+                if (S_ISREG(ent_size.st_mode)){
+                    num_file++;
+                }
+            }
+            
+            sprintf(howmany_file, "%d", num_file);
+            printf("file의 갯수 : %s\n", howmany_file);
+            write(main_socket, howmany_file, BUF_SIZE);
+            
+            rewinddir(dir);     // 디렉토리 읽기 위치를 처음으로 이동
+            
             while((ent=readdir(dir)) != NULL) {
                 lstat(ent->d_name, &ent_size);      // 파일 위치(파일이름)을 주고 구조체의 포인터를 넘겨줌 => 해당 파일의 정보가 구조체에 담김
                 
                 if(S_ISREG(ent_size.st_mode)) {     //
                     if(strcmp(ent->d_name, ".DS_Store")) {
-                        strcat(filelist, ent->d_name);
-                        sprintf(filesize, "$%lld/" , ent_size.st_size);
-                        strcat(filelist, filesize);
-                        //printf("%s", filelist);
+                        memset(filelist, 0, BUF_SIZE);
+                        strcpy(filelist, ent->d_name);
+                        printf("filelist : %s ,", filelist);
+                        write(main_socket, filelist, BUF_SIZE);
+                        
+                        
+                        memset(filesize, 0, BUF_SIZE);
+                        sprintf(filesize, "%lld" , ent_size.st_size);
+                        printf("filesize : %s\n", filesize);
+                        write(main_socket, filesize, BUF_SIZE);
+                        
+                        
                     }
                 }
             }
-            
-            write(main_socket, "ip_up", BUF_SIZE);
-            write(main_socket, filelist, 10240);
         }
         else
             printf("can't find directory\n");
         
-        printf("filelist :%d\n%s\n", num_file, filelist);
+        //printf("filelist :%d\n%s\n", num_file, filelist);
         closedir(dir);
         printf("end send_filename function\n");
         sleep(10);
+        close(main_socket);
     }
-    close(main_socket);
-    
     return NULL;
 }
 
