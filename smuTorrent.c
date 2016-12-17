@@ -210,7 +210,7 @@ void* thread_sendingfile(void * arg){            //part of HS
 
 void file_download() {
     
-    int howmany_clnt, howmuch_size, i;       // howmany_clnt : 다운받을 파일을 가지고 있는 클라이언트의 수
+    int howmany_clnt, howmuch_size, i,j;       // howmany_clnt : 다운받을 파일을 가지고 있는 클라이언트의 수
     struct sockaddr_in clnt_adr;
     struct sockaddr_in server_addr;
     int serv_sock;
@@ -236,6 +236,7 @@ void file_download() {
         error_msg("connection()");
     
     printf("server sock : %d\n", serv_sock);
+    
     write(serv_sock, "ip_down", BUF_SIZE);
     write(serv_sock, filename, BUF_SIZE);        // send filename to server (몇명이 가지고 있는지 누가 가지고 있는지 알기 위해)
     
@@ -489,14 +490,17 @@ void* thread_checkdir(void * arg){
     
     int main_socket;
     
+    main_socket = socket(PF_INET, SOCK_STREAM, 0);
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(server_ip);
+    server_addr.sin_port = htons(atoi(server_port));
+    if(connect(main_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
+        error_msg("connection()");
+    
+    write(main_socket, "ip_up", BUF_SIZE);
+    
     while(1){
-        main_socket = socket(PF_INET, SOCK_STREAM, 0);
-        memset(&server_addr, 0, sizeof(server_addr));
-        server_addr.sin_family = AF_INET;
-        server_addr.sin_addr.s_addr = inet_addr(server_ip);
-        server_addr.sin_port = htons(atoi(server_port));
-        if(connect(main_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
-            error_msg("connection()");
         
         //printf("start send_filename function\n");
         DIR *dir;
@@ -510,7 +514,6 @@ void* thread_checkdir(void * arg){
         //dir = opendir("/Users/Taewoo/Desktop/test/test");
         dir = opendir("./");
         //	char str1[1024];
-        write(main_socket, "ip_up", BUF_SIZE);
         
         if (dir != NULL) {
             while((ent=readdir(dir)) != NULL) {
@@ -518,12 +521,14 @@ void* thread_checkdir(void * arg){
         
                 
                 if (S_ISREG(ent_size.st_mode)){
-                    num_file++;
+                    if(strcmp(ent->d_name, ".DS_Store")) {
+                        num_file++;
+                    }
                 }
             }
-            
+            memset(howmany_file, 0, BUF_SIZE);
             sprintf(howmany_file, "%d", num_file);
-            //printf("file의 갯수 : %s\n", howmany_file);
+            printf("file의 갯수 : %s\n", howmany_file);
             write(main_socket, howmany_file, BUF_SIZE);
             
             rewinddir(dir);     // 디렉토리 읽기 위치를 처음으로 이동
@@ -544,7 +549,6 @@ void* thread_checkdir(void * arg){
                         //printf("filesize : %s\n", filesize);
                         write(main_socket, filesize, BUF_SIZE);
                         
-                        
                     }
                 }
             }
@@ -556,8 +560,8 @@ void* thread_checkdir(void * arg){
         closedir(dir);
         //printf("end send_filename function\n");
         sleep(10);
-        close(main_socket);
     }
+    close(main_socket);
     return NULL;
 }
 
