@@ -24,6 +24,12 @@
 #define TRUE 1
 #define FALSE 0
 
+typedef struct tTHREAD
+{
+    int filediscript;
+    int clnt_socket;
+}THREAD;
+
 void* thread_upload(void * arg);
 void* thread_download(void * arg);
 void* thread_sendingfile(void * arg);
@@ -39,10 +45,11 @@ char filename[BUF_SIZE];        // 다운받고자 하는 파일 이름이 담�
 int *check;
 int block_count;
 
+
 //int serv_sock;
 
 
-//pthread_mutex_t mutex;
+pthread_mutex_t mutex;
 
 
 
@@ -53,7 +60,7 @@ int main(){
     printf("Welcome to SMU Torrent System!!\n");
     
     
-    //pthread_mutex_init(&mutex, NULL);
+    pthread_mutex_init(&mutex, NULL);
     
     pthread_create(&checkdir, NULL, thread_checkdir, NULL);
     pthread_create(&upload, NULL, thread_upload, NULL);
@@ -83,6 +90,7 @@ int main(){
     //pthread_join(download, &thread_return);
     printf("close main_socket\n");
     
+    pthread_mutex_destroy(&mutex);
     return 0;
 }
 
@@ -206,7 +214,10 @@ void file_download() {
     struct sockaddr_in clnt_adr;
     struct sockaddr_in server_addr;
     int serv_sock;
+    int fd;
     char howmany[BUF_SIZE];
+    char file[BUF_SIZE];
+    THREAD for_thread;
     
     
     memset(filename, 0, BUF_SIZE);
@@ -244,12 +255,12 @@ void file_download() {
     printf("after make malloc - check pointer : %p\n", check);
     memset(check, 0, sizeof(int)*block_count);
     
-    printf("after malloc-blcok_count : %d\n", block_count);
+    /*printf("after malloc-blcok_count : %d\n", block_count);
     for(i=0; i<=block_count; i++) {
         printf("%d ", check[i]);
     }
     printf("\n");
-    
+    */
     printf("howmany_clnt : %d\n", howmany_clnt);
     printf("howmuch_data : %d\n", howmuch_size);
     
@@ -270,6 +281,15 @@ void file_download() {
     //strcpy(client[0], "203.237.179.42");     // <Hard-coding> 파일을 가지고 있는 클라이언트들의 IP를 나 자신으로 하드코딩 함(일단)
     //strcpy(client[1], "127.0.0.1");     // <Hard-coding>
     
+    strcpy(file, "down_");
+    strcat(file, filename);
+    printf("down file name : %s\n", file);
+    fd = open(file,  O_RDWR| O_CREAT| O_TRUNC,S_IRWXU);
+    
+    
+    for_thread.filediscript = fd;
+    
+    
     for(i=0; i < howmany_clnt; i++) {
         clnt_socks[i] = socket(PF_INET, SOCK_STREAM, 0);    // 파일을 가지고 있는 클라이언트와 연결
         
@@ -282,7 +302,11 @@ void file_download() {
             error_msg("connect() error");
         }
         
-        pthread_create(&download[i], NULL, thread_download, (void*)&clnt_socks[i]);     // 각각의 thread 생성
+        for_thread.clnt_socket = clnt_socks[i];
+        
+        //pthread_create(&download[i], NULL, thread_download, (void*)&clnt_socks[i]);     // 각각의 thread 생성
+        //pthread_create(&download[i], NULL, thread_download, for_thread);     // 각각의 thread 생성
+        pthread_create(&download[i], NULL, thread_download, (void*)&for_thread);     // 각각의 thread 생성
     }
     
     for(i=0 ; i < howmany_clnt; i++) {
@@ -308,10 +332,14 @@ void file_download() {
 }
 
 void* thread_download(void * arg){			//part of taewoo
-    int clnt_sock = *((int*)arg);
+    THREAD * tValue = (THREAD*) arg;
+    int clnt_sock = tValue->clnt_socket;
+    //int clnt_sock = arg[1];
     int str_len;
     FILE * fp;
-    int fd, filesize, sread, total=0, temp, i;
+    int filesize, sread, total=0, temp, i;
+    int fd = tValue->filediscript;
+    //int fd = *((int *)arg[1]);
     char result[BUF_SIZE];
     char data[BUF_SIZE];
     char size[BUF_SIZE];
@@ -320,7 +348,7 @@ void* thread_download(void * arg){			//part of taewoo
     char file[BUF_SIZE];
     char state[BUF_SIZE];
     
-    temp = clnt_sock;
+    //temp = clnt_sock;
     
     printf("thread start! : %s\n", filename);
     
@@ -350,31 +378,30 @@ void* thread_download(void * arg){			//part of taewoo
     
     
     if(!strcmp(result, "1")) {      // 1을 돌려받을 경우 파일을 다운로드 함
-        strcpy(file, "down_");
         
-        strcat(file, local_filename);
-        printf("down file name : %s\n", file);
-        fd = open(file,  O_RDWR| O_CREAT| O_TRUNC,S_IRWXU);
+        
+        
         
         printf("block_conut : %d\n", block_count);
         
         //memset(check, 0, sizeof(int)*block_count);
         
-        printf("before while-blcok_count : %d\n", block_count);
+        /*printf("before while-blcok_count : %d\n", block_count);
         for(i=0; i<=block_count; i++) {
             printf("%d ", check[i]);
         }
         printf("\n");
-        
+        */
         strcpy(state, "break");
         while(1) {
             for(i=0; i<= block_count; i++) {
+                pthread_mutex_lock(&mutex);
                 if(!check[i]) {
                     memset(start_binary, 0, BUF_SIZE);
                     sprintf(start_binary, "%d", i*100);
                 
                     write(clnt_sock, start_binary, BUF_SIZE);
-                    printf("%s \n", start_binary);
+                    printf("%s - %d\n", start_binary, clnt_sock);
                       
                     sread = read(clnt_sock, data, BUF_SIZE);
                     
@@ -384,12 +411,15 @@ void* thread_download(void * arg){			//part of taewoo
                     memset(data, 0, BUF_SIZE);
                     check[i] = 1;
                 }
+                pthread_mutex_unlock(&mutex);
             }
             
             for(i=0; i<= block_count; i++) {
+                pthread_mutex_lock(&mutex);
                 if(!check[i]) {
                     strcpy(state, "one_more");
                 }
+                pthread_mutex_unlock(&mutex);
             }
             
             if(!strcmp(state, "one_more")) {
@@ -400,12 +430,12 @@ void* thread_download(void * arg){			//part of taewoo
             }
         }
         
-        printf("after while-blcok_count : %d\n", block_count);
+        /*printf("after while-blcok_count : %d\n", block_count);
         for(i=0; i<=block_count; i++) {
             printf("%d ", check[i]);
         }
         printf("\n");
-        
+        */
         write(clnt_sock, "EOF", BUF_SIZE);
         /*
         while( total != filesize )
@@ -538,5 +568,5 @@ void* thread_checkdir(void * arg){
 
 void error_msg(char * msg){
     printf("%s is error!!\n", msg);
-    exit(1);
+    //exit(1);
 }
