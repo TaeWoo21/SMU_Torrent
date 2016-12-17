@@ -528,7 +528,7 @@ void* thread_checkdir(void * arg){
             }
             memset(howmany_file, 0, BUF_SIZE);
             sprintf(howmany_file, "%d", num_file);
-            printf("file의 갯수 : %s\n", howmany_file);
+            //printf("file의 갯수 : %s\n", howmany_file);
             write(main_socket, howmany_file, BUF_SIZE);
             
             rewinddir(dir);     // 디렉토리 읽기 위치를 처음으로 이동
