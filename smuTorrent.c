@@ -456,7 +456,8 @@ void* thread_checkdir(void * arg){
         char howmany_file[BUF_SIZE];
         char filesize[BUF_SIZE];
         //dir = opendir ("/Users/huynsoochoi/Desktop/1");
-        dir = opendir("/Users/Taewoo/Desktop/test/test");
+        //dir = opendir("/Users/Taewoo/Desktop/test/test");
+        dir = opendir("./");
         //	char str1[1024];
         write(main_socket, "ip_up", BUF_SIZE);
         
