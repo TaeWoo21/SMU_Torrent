@@ -158,7 +158,7 @@ void* thread_sendingfile(void * arg){            //part of HS
             //write(clnt_sock, &filesize, BUF_SIZE);                       //file size전송
             //lseek(fd, 0, SEEK_SET );
             
-            printf("file size : %d\n", filesize);
+            //printf("file size : %d\n", filesize);
             while(1){
                 read(clnt_sock, location, BUF_SIZE);
                 if(!strcmp(location, "EOF"))
@@ -291,6 +291,12 @@ void file_download() {
     
     
     for(i=0; i < howmany_clnt; i++) {
+        
+        printf("Connection IP :%s \n", client[i]);
+        if(!strcmp(client[i],"yourip")) {
+            continue;
+        }
+        
         clnt_socks[i] = socket(PF_INET, SOCK_STREAM, 0);    // 파일을 가지고 있는 클라이언트와 연결
         
         memset(&clnt_adr, 0, sizeof(clnt_adr));
@@ -298,14 +304,18 @@ void file_download() {
         clnt_adr.sin_addr.s_addr = inet_addr(client[i]);        // IP주소
         clnt_adr.sin_port = htons(atoi("9190"));      // Port 번호
         
+        
         if(connect(clnt_socks[i], (struct sockaddr*)&clnt_adr, sizeof(clnt_adr))== -1) {        // 다운로드 받을 클라이언트와 연결
-            error_msg("connect() error");
+            //error_msg("connect() error");
+            printf("%s 는 연결 불가! \n", client[i]);
+            continue;
         }
         
         for_thread.clnt_socket = clnt_socks[i];
         
         //pthread_create(&download[i], NULL, thread_download, (void*)&clnt_socks[i]);     // 각각의 thread 생성
         //pthread_create(&download[i], NULL, thread_download, for_thread);     // 각각의 thread 생성
+        printf("%s 쓰레드 생성 ! \n", client[i]);
         pthread_create(&download[i], NULL, thread_download, (void*)&for_thread);     // 각각의 thread 생성
     }
     
@@ -366,7 +376,7 @@ void* thread_download(void * arg){			//part of taewoo
     if(str_len == -1) {
         return (void*)-1;
     }
-    printf("clnt_sock2 : %d, %d\n", clnt_sock, temp);
+    printf("clnt_sock2 : %d\n", clnt_sock);
     
     //str_len = read(clnt_sock, &filesize, BUF_SIZE);
     //str_len = read(clnt_sock, size, BUF_SIZE);
@@ -402,8 +412,15 @@ void* thread_download(void * arg){			//part of taewoo
                 
                     write(clnt_sock, start_binary, BUF_SIZE);
                     printf("%s - %d\n", start_binary, clnt_sock);
-                      
+                    
                     sread = read(clnt_sock, data, BUF_SIZE);
+                    if(sread == 0 || sread == -1) {
+                        printf("!!!!!!\n");
+                        //strcpy(state, "force");
+                        close(clnt_sock);
+                        pthread_mutex_unlock(&mutex);
+                        return NULL;
+                    }
                     
                     lseek(fd, i*100, SEEK_SET );
                     
@@ -413,6 +430,10 @@ void* thread_download(void * arg){			//part of taewoo
                 }
                 pthread_mutex_unlock(&mutex);
             }
+            
+            /*if(!strcmp(state, "force")) {
+                break;
+            }*/
             
             for(i=0; i<= block_count; i++) {
                 pthread_mutex_lock(&mutex);
