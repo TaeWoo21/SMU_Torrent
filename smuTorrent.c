@@ -146,9 +146,9 @@ void* thread_sendingfile(void * arg){            //part of HS
         if((fd = open(msg, O_RDONLY,S_IRWXU)) == -1)
             error_msg("fopen()");
         else{
-            filesize = lseek( fd, 0, SEEK_END);
-            write(clnt_sock, &filesize, BUF_SIZE);                       //file size전송
-            lseek(fd, 0, SEEK_SET );
+            //filesize = lseek( fd, 0, SEEK_END);
+            //write(clnt_sock, &filesize, BUF_SIZE);                       //file size전송
+            //lseek(fd, 0, SEEK_SET );
             
             printf("file size : %d\n", filesize);
             while(1){
