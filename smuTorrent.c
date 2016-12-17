@@ -21,6 +21,8 @@
 
 #define BUF_SIZE 100
 #define IP_SIZE 20      // add!!!!
+#define TRUE 1
+#define FALSE 0
 
 void* thread_upload(void * arg);
 void* thread_download(void * arg);
@@ -37,6 +39,12 @@ char filename[BUF_SIZE];        // 다운받고자 하는 파일 이름이 담�
 int *check;
 int block_count;
 
+//int serv_sock;
+
+
+//pthread_mutex_t mutex;
+
+
 
 
 int main(){
@@ -44,11 +52,28 @@ int main(){
     pthread_t upload, download, checkdir;
     printf("Welcome to SMU Torrent System!!\n");
     
+    
+    //pthread_mutex_init(&mutex, NULL);
+    
     pthread_create(&checkdir, NULL, thread_checkdir, NULL);
     pthread_create(&upload, NULL, thread_upload, NULL);
     //pthread_create(&download, NULL, thread_download, (void*)&main_socket);
     
     sleep(2);
+    
+    
+    
+    /*
+    serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr(server_ip);
+    server_addr.sin_port = htons(atoi(server_port));
+    printf("server sock : %d\n", serv_sock);
+    
+    if(connect(serv_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
+        error_msg("connection()");
+    */
     while(1) {
         file_download();    // 메인에서 다운로드 함수 호출
     }
@@ -176,17 +201,19 @@ void* thread_sendingfile(void * arg){            //part of HS
 }
 
 void file_download() {
-    int howmany_clnt, howmuch_size, i, serv_sock;        // howmany_clnt : 다운받을 파일을 가지고 있는 클라이언트의 수
+    
+    int howmany_clnt, howmuch_size, i;       // howmany_clnt : 다운받을 파일을 가지고 있는 클라이언트의 수
     struct sockaddr_in clnt_adr;
     struct sockaddr_in server_addr;
-    
+    int serv_sock;
     char howmany[BUF_SIZE];
     
     
-    
+    memset(filename, 0, BUF_SIZE);
     printf("Input download file : ");
     fgets(filename, BUF_SIZE, stdin);
     
+    filename[strlen(filename)-1] = '\0';
     
     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
     memset(&server_addr, 0, sizeof(server_addr));
@@ -197,6 +224,7 @@ void file_download() {
     if(connect(serv_sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1)
         error_msg("connection()");
     
+    printf("server sock : %d\n", serv_sock);
     write(serv_sock, "ip_down", BUF_SIZE);
     write(serv_sock, filename, BUF_SIZE);        // send filename to server (몇명이 가지고 있는지 누가 가지고 있는지 알기 위해)
     
@@ -209,12 +237,21 @@ void file_download() {
     howmuch_size = atoi(howmany);
     
     block_count = howmuch_size / BUF_SIZE;
-    check = (int*)malloc(sizeof(int)*block_count);  // 체크 배열을 동적할당
+    check = (int*)malloc(sizeof(int)*block_count);  // 체크 배열을 동적할당'
     
-    memset(check, 0, BUF_SIZE);
+    
+    
+    printf("after make malloc - check pointer : %p\n", check);
+    memset(check, 0, sizeof(int)*block_count);
+    
+    printf("after malloc-blcok_count : %d\n", block_count);
+    for(i=0; i<=block_count; i++) {
+        printf("%d ", check[i]);
+    }
+    printf("\n");
     
     printf("howmany_clnt : %d\n", howmany_clnt);
-    printf("howmuch_clnt : %d\n", howmuch_size);
+    printf("howmuch_data : %d\n", howmuch_size);
     
     sleep(2);
     
@@ -252,7 +289,22 @@ void file_download() {
         pthread_join(download[i], NULL);
     }
     
+    //pthread_mutex_lock(&mutex);
+    printf("before free - check pointer : %p\n", check);
     free(check);
+    check = NULL;
+    //pthread_mutex_unlock(&mutex);
+    printf("malloc is free!\n");
+    
+    sleep(5);
+    close(serv_sock);
+    /*
+    printf("after free-blcok_count : %d\n", block_count);
+    for(i=0; i<=block_count; i++) {
+        printf("%d ", check[i]);
+    }
+    printf("\n");
+    */
 }
 
 void* thread_download(void * arg){			//part of taewoo
@@ -266,7 +318,7 @@ void* thread_download(void * arg){			//part of taewoo
     char start_binary[BUF_SIZE];
     char local_filename[BUF_SIZE];
     char file[BUF_SIZE];
-    
+    char state[BUF_SIZE];
     
     temp = clnt_sock;
     
@@ -274,7 +326,7 @@ void* thread_download(void * arg){			//part of taewoo
     
     strcpy(local_filename, filename);
     
-    local_filename[strlen(local_filename) - 1] = 0;     // 엔터키 지우기
+    //local_filename[strlen(local_filename) - 1] = 0;     // 엔터키 지우기
     
     printf("file name is : %s\n", local_filename);
     
@@ -289,12 +341,12 @@ void* thread_download(void * arg){			//part of taewoo
     printf("clnt_sock2 : %d, %d\n", clnt_sock, temp);
     
     //str_len = read(clnt_sock, &filesize, BUF_SIZE);
-    str_len = read(clnt_sock, size, BUF_SIZE);
-    filesize = atoi(size);
+    //str_len = read(clnt_sock, size, BUF_SIZE);
+    //filesize = atoi(size);
     
-    printf("clnt_sock3 : %d, %d\n", clnt_sock, temp);
-    clnt_sock = temp;
-    printf("file size : %d\n", filesize);
+    //printf("clnt_sock3 : %d, %d\n", clnt_sock, temp);
+    //clnt_sock = temp;
+    //printf("file size : %d\n", filesize);
     
     
     if(!strcmp(result, "1")) {      // 1을 돌려받을 경우 파일을 다운로드 함
@@ -304,20 +356,56 @@ void* thread_download(void * arg){			//part of taewoo
         printf("down file name : %s\n", file);
         fd = open(file,  O_RDWR| O_CREAT| O_TRUNC,S_IRWXU);
         
-        printf("block_conut : %d", block_count);
-        for(i=0; i<= block_count; i++) {
-            if(!check[i]) {
-                memset(start_binary, 0, BUF_SIZE);
-                sprintf(start_binary, "%d", i*100);
+        printf("block_conut : %d\n", block_count);
+        
+        //memset(check, 0, sizeof(int)*block_count);
+        
+        printf("before while-blcok_count : %d\n", block_count);
+        for(i=0; i<=block_count; i++) {
+            printf("%d ", check[i]);
+        }
+        printf("\n");
+        
+        strcpy(state, "break");
+        while(1) {
+            for(i=0; i<= block_count; i++) {
+                if(!check[i]) {
+                    memset(start_binary, 0, BUF_SIZE);
+                    sprintf(start_binary, "%d", i*100);
                 
-                write(clnt_sock, start_binary, BUF_SIZE);
-                printf("%s \n", start_binary);
+                    write(clnt_sock, start_binary, BUF_SIZE);
+                    printf("%s \n", start_binary);
                       
-                sread = read(clnt_sock, data, BUF_SIZE);
-                write(fd, data, sread);
-                memset(data, 0, BUF_SIZE);
+                    sread = read(clnt_sock, data, BUF_SIZE);
+                    
+                    lseek(fd, i*100, SEEK_SET );
+                    
+                    write(fd, data, sread);
+                    memset(data, 0, BUF_SIZE);
+                    check[i] = 1;
+                }
+            }
+            
+            for(i=0; i<= block_count; i++) {
+                if(!check[i]) {
+                    strcpy(state, "one_more");
+                }
+            }
+            
+            if(!strcmp(state, "one_more")) {
+                continue;
+            }
+            else {
+                break;
             }
         }
+        
+        printf("after while-blcok_count : %d\n", block_count);
+        for(i=0; i<=block_count; i++) {
+            printf("%d ", check[i]);
+        }
+        printf("\n");
+        
         write(clnt_sock, "EOF", BUF_SIZE);
         /*
         while( total != filesize )
@@ -338,9 +426,9 @@ void* thread_download(void * arg){			//part of taewoo
     }
     else {      // 0을 돌려받을 경우 클라이언트와 연결을 끊음
         printf("got 0 so i will close clnt_sock\n");		//add by hs
-        close(clnt_sock);
     }
     printf("finish!\n");
+    close(clnt_sock);
     return NULL;
 }
 
