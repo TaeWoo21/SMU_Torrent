@@ -27,6 +27,6 @@ before you start build this code, you need mysql client
 	
 	you can build client this code
 
-		gcc -o smuTorrent smuTorrent.c
+		gcc smuTorrent.c -D_REENTRANT -o smuTorrent -lpthread
 	
 	
